@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Optional real-API keys are build-time VITE_ vars. The app runs in mock mode
+# with none set. To go live, add these in Netlify's env settings (Site settings
+# -> Environment variables), NOT here:
+#   VITE_MUSIC_ADAPTER, VITE_EVENTS_ADAPTER, VITE_SPOTIFY_CLIENT_ID,
+#   VITE_SPOTIFY_REDIRECT_URI, VITE_YTMUSIC_CLIENT_ID, VITE_TICKETMASTER_API_KEY
+
+# SPA fallback: serve index.html for client-side routes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
