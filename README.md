@@ -1,5 +1,8 @@
 # ConcertMatch 🎫
 
+> Turns your music taste into concert recommendations with tickets near you.
+
+
 Recommend concert tickets based on your music taste. ConcertMatch reads your top
 artists and genres (Spotify / YouTube Music), derives artists you'd love, and
 matches them to real concerts near you (Ticketmaster) — each with a match score,

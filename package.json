@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Recommend concert tickets based on your music taste (Spotify / YouTube Music -> Ticketmaster events).",
+  "description": "Turns your music taste into concert recommendations with tickets near you.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
