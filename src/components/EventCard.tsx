@@ -58,7 +58,9 @@ export function EventCard({ event, interested, onToggleInterested }: Props) {
           <p>📍 {event.venue}, {event.city}</p>
           <p>🗓️ {formatDate(event.date)}{event.time ? ` · ${event.time}` : ''}</p>
           <p>
-            💲 {event.currency} {event.priceMin}–{event.priceMax}
+            💲 {event.priceMin === 0 && event.priceMax === 0
+              ? 'Price not published'
+              : `${event.currency} ${event.priceMin}–${event.priceMax}`}
           </p>
         </div>
 
@@ -70,6 +72,7 @@ export function EventCard({ event, interested, onToggleInterested }: Props) {
           href={event.buyUrl}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label={`Buy tickets for ${event.artistName} at ${event.venue}`}
           className="mt-4 block rounded-lg bg-brand-600 py-2 text-center text-sm font-semibold text-white transition hover:bg-brand-500"
         >
           Buy tickets

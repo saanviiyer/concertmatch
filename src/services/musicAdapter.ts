@@ -111,6 +111,29 @@ export function deriveAdjacentArtists(
   return [...picked.values()].slice(0, 6);
 }
 
+/** Build a real, personalized profile without requiring a streaming account. */
+export function buildManualTasteProfile(
+  artistNames: string[],
+  genres: string[],
+): TasteProfile {
+  const uniqueNames = [...new Set(artistNames.map((name) => name.trim()).filter(Boolean))];
+  const uniqueGenres = [...new Set(genres.map((genre) => genre.trim().toLowerCase()).filter(Boolean))];
+  if (uniqueNames.length === 0) throw new Error('Add at least one favorite artist.');
+  const topArtists: Artist[] = uniqueNames.slice(0, 20).map((name, index) => ({
+    id: `manual-${index}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    name,
+    genres: uniqueGenres,
+    popularity: Math.max(60, 100 - index * 3),
+  }));
+  const topGenres = uniqueGenres.map((genre) => ({ genre, weight: uniqueNames.length }));
+  return {
+    source: 'manual',
+    topArtists,
+    topGenres,
+    adjacentArtists: deriveAdjacentArtists(topArtists, topGenres),
+  };
+}
+
 // ============================================================================
 // (a) MOCK adapter — the default. Zero setup, fully offline.
 // ============================================================================
@@ -186,7 +209,9 @@ export class SpotifyMusicAdapter implements MusicAdapter {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(this.clientId);
+    // A client id alone cannot call the user endpoint. Until the OAuth callback
+    // supplies a token, keep the factory on its explicit mock fallback.
+    return Boolean(this.clientId && this.accessToken);
   }
 
   async getTopArtists(_limit = 10): Promise<Artist[]> {
@@ -241,7 +266,7 @@ export class YTMusicAdapter implements MusicAdapter {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(this.clientId);
+    return Boolean(this.clientId && this.accessToken);
   }
 
   async getTopArtists(_limit = 10): Promise<Artist[]> {

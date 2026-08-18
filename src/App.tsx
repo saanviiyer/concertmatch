@@ -10,7 +10,8 @@ import {
   isMockMode,
   recommendEvents,
 } from './services';
-import { loadInterested, toggleInterested } from './lib/storage';
+import { clearSession, loadInterested, loadSession, saveSession, toggleInterested } from './lib/storage';
+import { buildManualTasteProfile } from './services/musicAdapter';
 import { ConnectStep } from './components/ConnectStep';
 import { TasteProfileView } from './components/TasteProfileView';
 import { Filters } from './components/Filters';
@@ -34,12 +35,28 @@ export default function App() {
   // Restore the saved "interested" list on mount.
   useEffect(() => {
     setInterested(loadInterested());
+    const session = loadSession();
+    if (session) {
+      setProfile(session.profile);
+      setFilters(session.filters);
+    }
   }, []);
+
+  useEffect(() => {
+    if (profile) saveSession(profile, filters);
+  }, [profile, filters]);
 
   // Known cities from a probe query (empty filters => full mock catalog).
   const [cities, setCities] = useState<string[]>([]);
   useEffect(() => {
-    getEventsAdapter()
+    const adapter = getEventsAdapter();
+    if (adapter.id !== 'mock') {
+      // City is a free-text field; avoid spending a live API request merely to
+      // populate suggestions before the user has searched.
+      setCities(['Austin', 'Chicago', 'Los Angeles', 'New York', 'San Francisco']);
+      return;
+    }
+    adapter
       .searchEvents({ location: { city: '', radiusMiles: 200 } })
       .then((all) => {
         const set = new Set(all.map((e) => e.city));
@@ -62,13 +79,23 @@ export default function App() {
     }
   }
 
+  function handleManualConnect(artists: string[], genres: string[]) {
+    setError(null);
+    try {
+      setProfile(buildManualTasteProfile(artists, genres));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not build your profile');
+    }
+  }
+
   // Re-run recommendations whenever the profile or filters change.
   useEffect(() => {
     if (!profile) return;
     let cancelled = false;
-    setLoadingEvents(true);
-    getEventsAdapter()
-      .searchEvents(filters)
+    const timer = window.setTimeout(() => {
+      setLoadingEvents(true);
+      setError(null);
+      getEventsAdapter().searchEvents(filters)
       .then((raw) => {
         if (cancelled) return;
         setEvents(recommendEvents(raw, profile));
@@ -80,8 +107,10 @@ export default function App() {
       .finally(() => {
         if (!cancelled) setLoadingEvents(false);
       });
+    }, 250);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [profile, filters]);
 
@@ -114,6 +143,19 @@ export default function App() {
             )}
             {profile && (
               <button
+                onClick={() => {
+                  clearSession();
+                  setProfile(null);
+                  setShowInterested(false);
+                  setEvents([]);
+                }}
+                className="rounded-lg px-3 py-1.5 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white"
+              >
+                Change profile
+              </button>
+            )}
+            {profile && (
+              <button
                 onClick={() => setShowInterested((s) => !s)}
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white transition hover:bg-white/10"
               >
@@ -126,13 +168,13 @@ export default function App() {
 
       <main className="mx-auto max-w-6xl space-y-8 px-4 py-8">
         {error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
 
         {!profile ? (
-          <ConnectStep loading={connecting} onConnect={handleConnect} />
+          <ConnectStep loading={connecting} onConnect={handleConnect} onManualConnect={handleManualConnect} />
         ) : (
           <>
             {!showInterested && <TasteProfileView profile={profile} />}
@@ -158,7 +200,7 @@ export default function App() {
                     : `Recommended for you (${events.length})`}
                 </h3>
                 {loadingEvents && !showInterested && (
-                  <span className="animate-pulse text-sm text-brand-400">
+                  <span role="status" aria-live="polite" className="animate-pulse text-sm text-brand-400">
                     Loading events…
                   </span>
                 )}

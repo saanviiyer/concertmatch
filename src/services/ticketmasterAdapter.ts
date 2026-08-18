@@ -117,31 +117,93 @@ export class TicketmasterEventsAdapter implements EventsAdapter {
     private readonly apiKey = import.meta.env.VITE_TICKETMASTER_API_KEY as
       | string
       | undefined,
+    private readonly fetcher: typeof fetch = fetch,
   ) {}
 
   isConfigured(): boolean {
     return Boolean(this.apiKey);
   }
 
-  async searchEvents(_filters: RecommendationFilters): Promise<ConcertEvent[]> {
-    // TODO(real): build the URL above from _filters, fetch, and map the
-    // _embedded.events array to ConcertEvent[] using the mapping documented
-    // in this class's JSDoc. Example skeleton:
-    //
-    //   const url = new URL('https://app.ticketmaster.com/discovery/v2/events.json');
-    //   url.searchParams.set('apikey', this.apiKey!);
-    //   url.searchParams.set('classificationName', 'music');
-    //   url.searchParams.set('city', _filters.location.city);
-    //   url.searchParams.set('radius', String(_filters.location.radiusMiles));
-    //   url.searchParams.set('unit', 'miles');
-    //   if (_filters.startDate) url.searchParams.set('startDateTime', `${_filters.startDate}T00:00:00Z`);
-    //   if (_filters.endDate) url.searchParams.set('endDateTime', `${_filters.endDate}T23:59:59Z`);
-    //   const res = await fetch(url);
-    //   const json = await res.json();
-    //   return (json._embedded?.events ?? []).map(mapEvent);
-    //
-    throw new NotImplementedError('TicketmasterEventsAdapter.searchEvents');
+  async searchEvents(filters: RecommendationFilters): Promise<ConcertEvent[]> {
+    if (!this.apiKey) throw new NotImplementedError('TicketmasterEventsAdapter.searchEvents');
+    const url = new URL('https://app.ticketmaster.com/discovery/v2/events.json');
+    url.searchParams.set('apikey', this.apiKey);
+    url.searchParams.set('classificationName', 'music');
+    url.searchParams.set('size', '100');
+    url.searchParams.set('sort', 'date,asc');
+    const city = filters.location.city.trim();
+    if (city) url.searchParams.set('city', city);
+    url.searchParams.set('radius', String(Math.min(200, Math.max(5, filters.location.radiusMiles))));
+    url.searchParams.set('unit', 'miles');
+    if (filters.startDate) url.searchParams.set('startDateTime', `${filters.startDate}T00:00:00Z`);
+    if (filters.endDate) url.searchParams.set('endDateTime', `${filters.endDate}T23:59:59Z`);
+
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await this.fetcher(url, { signal: controller.signal });
+      const body = await response.json().catch(() => ({})) as TicketmasterResponse;
+      if (!response.ok) {
+        const detail = body.fault?.faultstring || body.detail || `Ticketmaster request failed (${response.status})`;
+        throw new Error(detail);
+      }
+      return (body._embedded?.events || [])
+        .map(mapTicketmasterEvent)
+        .filter((event): event is ConcertEvent => event !== null)
+        .filter((event) => filters.maxPrice == null || event.priceMin <= filters.maxPrice);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Ticketmaster took too long to respond. Please retry.');
+      }
+      throw error;
+    } finally {
+      globalThis.clearTimeout(timeout);
+    }
   }
+}
+
+interface TicketmasterEventJson {
+  id?: string; name?: string; url?: string;
+  dates?: { start?: { localDate?: string; localTime?: string } };
+  priceRanges?: Array<{ min?: number; max?: number; currency?: string }>;
+  images?: Array<{ url?: string; ratio?: string; width?: number }>;
+  _embedded?: {
+    attractions?: Array<{ name?: string }>;
+    venues?: Array<{ name?: string; city?: { name?: string } }>;
+  };
+}
+interface TicketmasterResponse {
+  _embedded?: { events?: TicketmasterEventJson[] };
+  fault?: { faultstring?: string };
+  detail?: string;
+}
+
+export function mapTicketmasterEvent(raw: TicketmasterEventJson): ConcertEvent | null {
+  const id = raw.id?.trim();
+  const eventName = raw.name?.trim();
+  const date = raw.dates?.start?.localDate;
+  const buyUrl = raw.url?.trim();
+  if (!id || !eventName || !date || !buyUrl) return null;
+  const venue = raw._embedded?.venues?.[0];
+  const range = raw.priceRanges?.[0];
+  const image = [...(raw.images || [])]
+    .filter((item) => item.url)
+    .sort((a, b) => Number(b.ratio === '16_9') - Number(a.ratio === '16_9') || (b.width || 0) - (a.width || 0))[0];
+  return {
+    id,
+    artistName: raw._embedded?.attractions?.[0]?.name?.trim() || eventName,
+    eventName,
+    venue: venue?.name?.trim() || 'Venue to be announced',
+    city: venue?.city?.name?.trim() || 'Location to be announced',
+    date,
+    time: raw.dates?.start?.localTime?.slice(0, 5),
+    priceMin: typeof range?.min === 'number' ? range.min : 0,
+    priceMax: typeof range?.max === 'number' ? range.max : (range?.min || 0),
+    currency: range?.currency || 'USD',
+    imageUrl: image?.url,
+    buyUrl,
+    source: 'ticketmaster',
+  };
 }
 
 function delay(ms: number): Promise<void> {

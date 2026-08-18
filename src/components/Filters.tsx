@@ -18,18 +18,19 @@ export function Filters({ filters, cities, onChange }: Props) {
     <div className="grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2 lg:grid-cols-5">
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-gray-400">City</span>
-        <select
+        <input
+          list="concertmatch-cities"
           value={filters.location.city}
           onChange={(e) => setLocation({ city: e.target.value })}
+          placeholder="Any city"
           className="rounded-lg border border-white/10 bg-[#14141d] px-3 py-2 text-white outline-none focus:border-brand-500"
-        >
-          <option value="">All cities</option>
+        />
+        <datalist id="concertmatch-cities">
           {cities.map((c) => (
             <option key={c} value={c}>
-              {c}
             </option>
           ))}
-        </select>
+        </datalist>
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
@@ -49,6 +50,7 @@ export function Filters({ filters, cities, onChange }: Props) {
         <span className="text-gray-400">From</span>
         <input
           type="date"
+          max={filters.endDate}
           value={filters.startDate ?? ''}
           onChange={(e) => set({ startDate: e.target.value || undefined })}
           className="rounded-lg border border-white/10 bg-[#14141d] px-3 py-2 text-white outline-none focus:border-brand-500"
@@ -59,6 +61,7 @@ export function Filters({ filters, cities, onChange }: Props) {
         <span className="text-gray-400">To</span>
         <input
           type="date"
+          min={filters.startDate}
           value={filters.endDate ?? ''}
           onChange={(e) => set({ endDate: e.target.value || undefined })}
           className="rounded-lg border border-white/10 bg-[#14141d] px-3 py-2 text-white outline-none focus:border-brand-500"

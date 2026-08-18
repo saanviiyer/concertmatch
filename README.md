@@ -15,6 +15,8 @@ opt-in behind environment variables.
 
 ## Quick start (mock mode, no API keys)
 
+Requires Node.js 20.19 or newer.
+
 ```bash
 npm install
 npm run dev      # open the printed http://localhost:5173
@@ -36,6 +38,7 @@ npm run preview  # serve the built app
 ## What it does
 
 - **Connect your music** — pick a source. Each source is a swappable adapter.
+- **No-account personalization** — enter favorite artists and genres to build and persist a real taste profile without OAuth or API keys.
 - **Taste profile** — top artists, weighted top genres, and derived
   "you might like" adjacent artists.
 - **Concert recommendations** — scored events for your profile + city/radius,
@@ -51,10 +54,10 @@ Every external service sits behind a TypeScript interface in `src/services/`.
 The UI only ever talks to these interfaces, so the app runs identically on mock
 or real data.
 
-| Concern      | Interface       | Mock impl (default)    | Real impl (stub, gated)        |
+| Concern      | Interface       | Mock impl (default)    | Real implementation        |
 | ------------ | --------------- | ---------------------- | ------------------------------ |
 | Music taste  | `MusicAdapter`  | `MockMusicAdapter`     | `SpotifyMusicAdapter`, `YTMusicAdapter` |
-| Events       | `EventsAdapter` | `MockEventsAdapter`    | `TicketmasterEventsAdapter`    |
+| Events       | `EventsAdapter` | `MockEventsAdapter`    | `TicketmasterEventsAdapter` (implemented) |
 
 The factory `src/services/index.ts` (`getMusicAdapter` / `getEventsAdapter`)
 picks the implementation from env vars and **falls back to mock automatically**
@@ -69,7 +72,7 @@ adapter-agnostic (works the same on mock or live data).
 
 1. Copy `.env.example` to `.env` and fill in keys (see links below).
 2. Set the adapter selector env vars.
-3. Implement the `TODO(real)` body in the matching adapter class.
+3. Spotify and YouTube still require their documented OAuth work. Ticketmaster is fully implemented once its public consumer key is present.
 
 ### Spotify
 
@@ -98,10 +101,9 @@ adapter-agnostic (works the same on mock or live data).
 - **Get key:** <https://developer.ticketmaster.com/> — register, create an app,
   copy the Consumer Key (free tier available).
 - **Env:** `VITE_EVENTS_ADAPTER=ticketmaster`, `VITE_TICKETMASTER_API_KEY=...`.
-- **Swap:** implement `TicketmasterEventsAdapter.searchEvents()` in
-  `src/services/ticketmasterAdapter.ts`. The Discovery API URL and the full
-  field mapping (`_embedded.events[i]` → `ConcertEvent`) are documented in that
-  method's JSDoc, including a copy-paste fetch skeleton.
+- **Live behavior:** `TicketmasterEventsAdapter.searchEvents()` is implemented,
+  including bounded radius/date queries, response validation, missing-field
+  fallbacks, request timeout, API error reporting, and client-side price filtering.
 
 ---
 
@@ -137,7 +139,9 @@ concertmatch/
 
 The production build in `dist/` is a fully static SPA. Deploy configs are
 checked in: `vercel.json`, `netlify.toml`, and a `Dockerfile`, each with an SPA
-fallback so unknown routes serve `index.html`.
+fallback so unknown routes serve `index.html`. Each target also supplies a
+restrictive Content Security Policy and baseline anti-framing/content-sniffing
+headers; the container includes an HTTP health check.
 
 **It ships in mock mode with zero config.** The real-API keys are all
 *build-time* `VITE_*` vars — Vite inlines them into the bundle when `npm run

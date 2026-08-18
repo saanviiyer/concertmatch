@@ -9,6 +9,15 @@
 #   VITE_SPOTIFY_REDIRECT_URI, VITE_YTMUSIC_CLIENT_ID, VITE_TICKETMASTER_API_KEY
 
 # SPA fallback: serve index.html for client-side routes.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; connect-src 'self' https://app.ticketmaster.com https://api.spotify.com https://accounts.spotify.com https://www.googleapis.com; frame-ancestors 'none'; img-src 'self' data: https:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
